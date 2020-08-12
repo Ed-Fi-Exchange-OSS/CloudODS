@@ -1,0 +1,9 @@
+admin
+administrator
+sa
+root
+dbmanager
+loginmanager
+dbo
+guest
+public

@@ -1,0 +1,77 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup Label="ProjectConfigurations">
+    <ProjectConfiguration Include="Debug|AnyCPU">
+      <Configuration>Debug</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+    <ProjectConfiguration Include="Release|AnyCPU">
+      <Configuration>Release</Configuration>
+      <Platform>AnyCPU</Platform>
+    </ProjectConfiguration>
+  </ItemGroup>
+  <PropertyGroup Label="Globals">
+    <ProjectGuid>d0eb9e6c-77b3-4242-a5e0-0f40f705b02e</ProjectGuid>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetFrameworkIdentifier>Deployment</TargetFrameworkIdentifier>
+    <TargetFrameworkVersion>1.0</TargetFrameworkVersion>
+    <PrepareForBuildDependsOn>
+    </PrepareForBuildDependsOn>
+  </PropertyGroup>
+  <Import Condition=" Exists('Deployment.targets') " Project="Deployment.targets" />
+  <Import Project="$(MSBuildToolsPath)\Microsoft.Common.targets" />
+  <!-- vertag<:>start tokens<:>maj.min -->
+  <Import Condition=" Exists('$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Deployment\1.1\DeploymentProject.targets') " Project="$(MSBuildExtensionsPath)\Microsoft\VisualStudio\v$(VisualStudioVersion)\Deployment\1.1\DeploymentProject.targets" />
+  <!-- vertag<:>end -->
+  <ItemGroup>
+    <Folder Include="Tools\" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Deployment.targets">
+      <Visible>False</Visible>
+    </None>
+    <Content Include="Scripts\Deploy-AzureResourceGroup.ps1" />
+    <Content Include="Templates\azuredeploy.json" />
+    <Content Include="Templates\azuredeploy.parameters.json" />
+    <None Include="Published\AzureActiveDirectoryApplicationHelper.psd1" />
+    <None Include="Published\AzureActiveDirectoryApplicationHelper.psm1" />
+    <None Include="Published\Dependencies.psd1" />
+    <None Include="Published\Dependencies.psm1" />
+    <None Include="Published\EdFiOdsDeploy.psd1" />
+    <None Include="Published\EdFiOdsDeploy.psm1" />
+    <None Include="Published\Deploy-EdFiOds.ps1" />
+    <None Include="Published\ScaleDown-EdFiOds.ps1" />
+    <None Include="Published\invalid_usernames.txt" />
+    <None Include="Published\OdsUpdate.json" />
+    <None Include="Published\OdsUpdate.parameters.json" />
+    <None Include="Published\Ods.json" />
+    <None Include="Published\Ods.parameters.json" />
+    <None Include="Published\OdsAdminApp.json" />
+    <None Include="Published\OdsAdminApp.parameters.json" />
+    <None Include="Published\OdsAdminAppWithoutSqlServer.json" />
+    <None Include="Published\OdsAdminAppWithoutSqlServer.parameters.json" />
+    <None Include="Published\OdsWithoutSqlServer.json" />
+    <None Include="Published\OdsWithoutSqlServer.parameters.json" />
+    <None Include="Published\Update-EdFiOds.ps1" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="Tools\AzCopy.exe" />
+    <Content Include="Tools\Microsoft.Data.Edm.dll">
+      <Visible>False</Visible>
+    </Content>
+    <Content Include="Tools\Microsoft.Data.OData.dll">
+      <Visible>False</Visible>
+    </Content>
+    <Content Include="Tools\Microsoft.Data.Services.Client.dll">
+      <Visible>False</Visible>
+    </Content>
+    <Content Include="Tools\Microsoft.WindowsAzure.Storage.dll">
+      <Visible>False</Visible>
+    </Content>
+    <Content Include="Tools\Microsoft.WindowsAzure.Storage.DataMovement.dll">
+      <Visible>False</Visible>
+    </Content>
+  </ItemGroup>
+  <Target Name="GetReferenceAssemblyPaths" />
+</Project>

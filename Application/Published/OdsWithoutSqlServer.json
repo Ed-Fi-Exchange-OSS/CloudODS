@@ -1,0 +1,286 @@
+﻿{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "sqlServerAdminLogin": {
+            "type": "string"
+        },
+        "sqlServerAdminPassword": {
+            "type": "securestring"
+        },
+        "sqlServerHostname": {
+            "type": "string"
+        },
+        "sqlServerProductionApiLogin": {
+            "type": "string",
+            "defaultValue": "EdFiOdsProductionApi"
+        },
+        "sqlServerProductionApiPassword": {
+            "type": "securestring"
+        },
+        "version": {
+            "type": "string"
+        },
+        "edition": {
+            "type": "string",
+            "allowedValues": [ "test", "release" ],
+            "defaultValue": "release"
+        },
+        "deploySwaggerUI": {
+          "type": "bool",
+          "defaultValue": false
+        },
+        "appInsightsLocation": {
+            "type": "string",
+            "allowedValues": [ "East US", "South Central US" ],
+            "defaultValue": "South Central US"
+        },
+        "metadataCacheTimeOut": {
+            "type": "string",
+            "defaultValue": "0"
+        }
+    },
+    "variables": {
+        "odsAssetsBaseUrl": "[concat('https://odsassets.blob.core.windows.net/public/CloudOds/deploy/', parameters('edition'), '/', parameters('version'), '/')]",
+        "sqlMaxSizeBytes_Standard": "268435456000",
+        "sqlMaxSizeBytes_Premium": "536870912000",
+        "sqlServerSettings": {
+            "hostname": "[parameters('sqlServerHostname')]",
+            "administratorLogin": "[parameters('sqlServerAdminLogin')]",
+            "administratorLoginPassword": "[parameters('sqlServerAdminPassword')]"
+        },
+      "productionWebsiteSettings": {
+        "hostingPlanName": "Ed-Fi-Production-Websites",
+        "pricingTier": "S1",
+        "apiWebsiteName": "[concat('EdFiOdsApiWebSite-Production-', uniqueString(resourceGroup().id))]",
+        "swaggerWebsiteName": "[concat('EdFiOdsSwaggerWebSite-Production-', uniqueString(resourceGroup().id))]",
+        "sqlLogin": "[parameters('sqlServerProductionApiLogin')]",
+        "sqlPassword": "[parameters('sqlServerProductionApiPassword')]"
+      },
+        "odsApiAssetsUrl": "[concat(variables('odsAssetsBaseurl'), 'EdFi.Ods.WebApi.zip')]",
+        "swaggerAssetsUrl": "[concat(variables('odsAssetsBaseurl'), 'EdFi.Ods.SwaggerUI.zip')]",
+        "odsstorageName": "[concat('odsstorage', uniqueString(resourceGroup().id))]"
+
+    },
+    "resources": [
+        {
+            "apiVersion": "2015-08-01",
+            "name": "[variables('productionWebsiteSettings').hostingPlanName]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "Production Web Hosting Plan"
+            },
+            "sku": {
+                "name": "[variables('productionWebsiteSettings').pricingTier]",
+                "capacity": 1
+            },
+            "properties": {
+                "name": "[variables('productionWebsiteSettings').hostingPlanName]"
+            }
+        },
+        {
+            "apiVersion": "2015-08-01",
+            "name": "[variables('productionWebsiteSettings').apiWebsiteName]",
+            "type": "Microsoft.Web/sites",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Web/serverFarms/', variables('productionWebsiteSettings').hostingPlanName)]"
+            ],
+            "tags": {
+                "[concat('hidden-related:', resourceId('Microsoft.Web/serverfarms/', variables('productionWebsiteSettings').hostingPlanName))]": "empty",
+                "displayName": "Production API Website",
+                "Cloud-Ods-Role": "Api",
+                "Cloud-Ods-Environment": "Production"
+            },
+            "properties": {
+                "name": "[variables('productionWebsiteSettings').apiWebsiteName]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('productionWebsiteSettings').hostingPlanName)]",
+                "siteConfig": {
+                    "AlwaysOn": true
+                }
+            },
+            "resources": [
+                {
+                    "apiVersion": "2015-08-01",
+                    "type": "config",
+                    "name": "connectionstrings",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName)]",
+                        "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName, '/extensions/MSDeploy')]"
+                    ],
+                    "properties": {
+                        "EdFi_Ods": {
+                            "value": "[concat('Data Source=tcp:', variables('sqlServerSettings').hostname, ';Initial Catalog=EdFi_Ods_Production;User Id=\"', variables('productionWebsiteSettings').sqlLogin,'\";Password=\"', variables('productionWebsiteSettings').sqlPassword, '\";')]",
+                            "type": "SQLServer"
+                        },
+                        "EdFi_Admin": {
+                            "value": "[concat('Data Source=tcp:', variables('sqlServerSettings').hostname, ';Initial Catalog=EdFi_Admin;User Id=\"', variables('productionWebsiteSettings').sqlLogin,'\";Password=\"', variables('productionWebsiteSettings').sqlPassword, '\";')]",
+                            "type": "SQLServer"
+                        },
+                        "EdFi_Security": {
+                            "value": "[concat('Data Source=tcp:', variables('sqlServerSettings').hostname, ';Initial Catalog=EdFi_Security;User Id=\"', variables('productionWebsiteSettings').sqlLogin,'\";Password=\"', variables('productionWebsiteSettings').sqlPassword, '\";')]",
+                            "type": "SQLServer"
+                        },
+                        "EdFi_Master": {
+                            "value": "[concat('Data Source=tcp:', variables('sqlServerSettings').hostname, ';Initial Catalog=master;User Id=\"', variables('productionWebsiteSettings').sqlLogin,'\";Password=\"', variables('productionWebsiteSettings').sqlPassword, '\";')]",
+                            "type": "SQLServer"
+                        }
+                    }
+                },
+                {
+                    "apiVersion": "2015-08-01",
+                    "type": "config",
+                    "name": "appsettings",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName)]",
+                        "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName, '/extensions/MSDeploy')]",
+                        "[concat('AppInsights-', variables('productionWebsiteSettings').apiWebsiteName)]"
+                    ],
+                    "properties": {
+                        "owin:appStartup": "AzureCloudOds",
+                        "apiStartup:type": "sharedinstance",                        
+                        "PreserveLoginUrl": "true",
+                        "BearerTokenTimeoutInMinutes": "15",
+                        "ApplicationInsightsInstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', concat('AppInsights-', variables('productionWebsiteSettings').apiWebsiteName)), '2014-04-01').InstrumentationKey]",
+                        "LogLevelOverride": "INFO",
+                        "ExpectedUseSandboxValue": "false",
+                        "changeQueries:featureIsEnabled": "true",
+                        "identityManagement:featureIsEnabled": "false",
+                        "composites:featureIsEnabled": "true",
+                        "ExcludedExtensionSources": "Sample,GrandBend,Homograph",
+                        "SecurityMetadataCacheTimeoutMinutes": "[parameters('metadataCacheTimeOut')]"
+                    }
+                },
+                {
+                    "apiVersion": "2015-08-01",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName)]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "MSDeploy",
+                    "properties": {
+                        "connectionString": "",
+                        "dbType": "None",
+                        "packageUri": "[variables('odsApiAssetsUrl')]",
+                        "setParameters": {
+                            "IIS Web Application Name": "[variables('productionWebsiteSettings').apiWebsiteName]"
+                        }
+                    },
+                    "tags": {
+                        "displayName": "deployment"
+                    },
+                    "type": "extensions"
+                }
+            ]
+        },
+        {
+        "apiVersion": "2015-08-01",
+        "condition": "[parameters('deploySwaggerUI')]",
+        "name": "[variables('productionWebsiteSettings').swaggerWebsiteName]",
+        "type": "Microsoft.Web/sites",
+        "location": "[resourceGroup().location]",
+        "dependsOn": [
+          "[concat('Microsoft.Web/serverFarms/', variables('productionWebsiteSettings').hostingPlanName)]"
+        ],
+          "tags": {
+            "[concat('hidden-related:', resourceId('Microsoft.Web/serverfarms/', variables('productionWebsiteSettings').hostingPlanName))]": "empty",
+            "displayName": "Swagger Website",
+            "Cloud-Ods-Role": "Swagger",
+            "Cloud-Ods-Environment": "Production"
+          },
+          "properties": {
+            "name": "[variables('productionWebsiteSettings').swaggerWebsiteName]",
+            "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('productionWebsiteSettings').hostingPlanName)]"
+          },
+        "resources": [
+          {
+            "apiVersion": "2015-08-01",
+            "condition": "[parameters('deploySwaggerUI')]",
+            "type": "config",
+            "name": "appsettings",
+            "dependsOn": [
+              "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').swaggerWebsiteName)]",
+              "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName)]",
+              "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').swaggerWebsiteName, '/extensions/MSDeploy')]"
+            ],
+            "properties": {
+              "swagger.webApi": "[if(startsWith(parameters('version'), '2.'), concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0], '/api/v2.0'), '')]",
+              "swagger.webApiMetadataUrl": "[if(startsWith(parameters('version'), '2.'), concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0], '/metadata/{section}/api-docs'), concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0], '/metadata/'))]",
+              "swagger.adminUrl": "[if(startsWith(parameters('version'), '2.'), concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0], '/oauth/'), '')]",
+              "swagger.webApiVersionUrl": "[if(startsWith(parameters('version'), '2.'), '', concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0], '/'))]"
+            }
+          },
+          {
+            "apiVersion": "2015-08-01",
+            "condition": "[parameters('deploySwaggerUI')]",
+            "dependsOn": [
+              "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').swaggerWebsiteName)]"
+            ],
+            "location": "[resourceGroup().location]",
+            "name": "MSDeploy",
+            "properties": {
+              "connectionString": "",
+              "dbType": "None",
+              "packageUri": "[variables('swaggerAssetsUrl')]",
+              "setParameters": {
+                "IIS Web Application Name": "[variables('productionWebsiteSettings').swaggerWebsiteName]"
+              }
+            },
+            "tags": {
+              "displayName": "deployment"
+            },
+            "type": "extensions"
+          }
+        ]
+      },
+        {
+            "name": "[variables('odsstorageName')]",
+            "type": "Microsoft.Storage/storageAccounts",
+            "location": "[resourceGroup().location]",
+            "apiVersion": "2015-06-15",
+            "dependsOn": [ ],
+            "tags": {
+                "displayName": "EdFi ODS Storage Account"
+            },
+            "properties": {
+                "accountType": "Standard_LRS"
+            }
+        },
+        {
+            "name": "[concat('AppInsights-', variables('productionWebsiteSettings').apiWebsiteName)]",
+            "type": "Microsoft.Insights/components",
+            "location": "[parameters('appInsightsLocation')]",
+            "apiVersion": "2014-04-01",
+            "dependsOn": [
+                "[concat('Microsoft.Web/sites/', variables('productionWebsiteSettings').apiWebsiteName)]"
+            ],
+            "tags": {
+                "[concat('hidden-link:', resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName))]": "Resource",
+                "displayName": "Production Api AppInsights"
+            },
+            "properties": {
+                "applicationId": "[variables('productionWebsiteSettings').apiWebsiteName]"
+            }
+        }
+    ],
+    "outputs": {
+        "swaggerUrl": {
+        "condition": "[parameters('deploySwaggerUI')]",
+        "type": "string",
+        "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').swaggerWebsiteName)).hostNames[0])]"
+      },
+        "productionApiUrl": {
+            "type": "string",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('productionWebsiteSettings').apiWebsiteName)).hostNames[0])]"
+        },
+        "resourceGroupUniqueString": {
+            "type": "string",
+            "value": "[uniqueString(resourceGroup().id)]"
+        },
+        "sqlServerHostname": {
+            "type": "string",
+            "value": "[parameters('sqlServerHostname')]"
+        }
+    }
+}
