@@ -105,7 +105,6 @@ function Update-Ods()
 	$existingAppPlans = Get-AzureRmAppServicePlan -ResourceGroupName $resourceGroupName
 	$adminAppWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Admin*'}).Sku.Name
 	$productionWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Production*'}).Sku.Name
-	$stagingWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Staging*'}).Sku.Name
 		
 	$deployParameters = New-Object -TypeName Hashtable
 	$deployParameters.Add("version", $Version.ToString())
@@ -113,7 +112,6 @@ function Update-Ods()
 
 	$deployParameters.Add("adminAppWebsiteServiceObjective", $adminAppWebsiteServiceObjective)
 	$deployParameters.Add("productionWebsiteServiceObjective", $productionWebsiteServiceObjective)
-	$deployParameters.Add("stagingWebsiteServiceObjective", $stagingWebsiteServiceObjective)
 	
 	$templateFile = $OdsTemplateFile
 	$templateParametersFile = $OdsTemplateParametersFile

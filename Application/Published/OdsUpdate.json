@@ -17,10 +17,6 @@
     "productionWebsiteServiceObjective": {
       "type": "string",
       "defaultValue": "S3"
-    },
-    "stagingWebsiteServiceObjective": {
-      "type": "string",
-      "defaultValue": "S1"
     }
   },
   "variables": {
