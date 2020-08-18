@@ -44,10 +44,6 @@ Use-Module "AzureRM" "4.3.1"
 
 $OdsTemplateFile = "$TemplateFileDirectory\OdsUpdate.json"
 $OdsTemplateParametersFile = "$TemplateFileDirectory\OdsUpdate.parameters.json"
-$LicenseFileName = 'CloudOdsLicense'
-$Global:licenseTempFile = $Null
-$Global:licenseRestoreFailed = $False;
-
 
 function Validate-RequestedInstallVersionExists()
 {
@@ -101,60 +97,6 @@ function Get-AzureRmWebSiteName($resourceGroupName, $baseName)
     return $webSite.Name;
 }
 
-function Backup-CloudOdsLicense($resourceGroupName, $adminAppWebSiteName)
-{
-    Write-Host "Backing-up the Cloud ODS License."
-
-    try
-    {
-        $license = $Null
-        $license = (Get-DirectoryFromWebApp $resourceGroupName $adminAppWebSiteName) | Where {$_.name -eq $LicenseFileName}
-        if ($license -eq $Null)
-        {
-            Write-Host "No Cloud ODS License file was found."
-            return $Null;
-        }
-    }
-    catch
-    {
-        Write-Error -Message "Error while retrieving the Cloud ODS License directory content."
-        exit
-    }
-
-    $tempFile = [IO.Path]::GetTempPath() + $LicenseFileName + '-' + [IO.Path]::GetRandomFileName()
-    $tempFile = $tempFile.Substring(0, $tempFile.LastIndexOf('.')) + '.tmp'
-    Remove-Item $tempFile -ErrorAction Ignore
-
-    try
-    {
-        Download-FileFromWebApp $resourceGroupName $adminAppWebSiteName "" $LicenseFileName $tempFile
-        Write-Host "Cloud ODS License file is temporarily saved in $tempFile"
-    }
-    catch
-    {
-        Write-Error -Message "Error while downloading the Cloud ODS License file."
-        exit
-    }
-
-    return $tempFile
-}
-
-function Restore-CloudOdsLicense($resourceGroupName, $adminAppWebSiteName, $licenseTempFile)
-{
-    Write-Host "Restoring the Cloud ODS License."
-    
-    try
-    {
-        Upload-FileToWebApp $resourceGroupName $adminAppWebSiteName "" $licenseTempFile $LicenseFileName
-        Write-Host "Cloud ODS License file is restored."
-    }
-    catch
-    {
-        $Global:licenseRestoreFailed = $True
-        Write-Host "Error while uploading the Cloud ODS License file. Back-up the license file from ($licenseTempFile) immediatly. Use this file to restore the Cloud ODS License in the Admin App website." -ForegroundColor Red
-    }
-}
-
 function Update-Ods()
 {
 	Write-Host "Updating EdFi ODS to version $Version"
@@ -163,7 +105,6 @@ function Update-Ods()
 	$existingAppPlans = Get-AzureRmAppServicePlan -ResourceGroupName $resourceGroupName
 	$adminAppWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Admin*'}).Sku.Name
 	$productionWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Production*'}).Sku.Name
-	$stagingWebsiteServiceObjective = ($existingAppPlans | Where {$_.Name -like '*Staging*'}).Sku.Name
 		
 	$deployParameters = New-Object -TypeName Hashtable
 	$deployParameters.Add("version", $Version.ToString())
@@ -171,14 +112,9 @@ function Update-Ods()
 
 	$deployParameters.Add("adminAppWebsiteServiceObjective", $adminAppWebsiteServiceObjective)
 	$deployParameters.Add("productionWebsiteServiceObjective", $productionWebsiteServiceObjective)
-	$deployParameters.Add("stagingWebsiteServiceObjective", $stagingWebsiteServiceObjective)
 	
 	$templateFile = $OdsTemplateFile
 	$templateParametersFile = $OdsTemplateParametersFile
-
-    $adminAppBaseName = 'AdminApp'
-    $adminAppWebSiteName = Get-AzureRmWebSiteName $resourceGroupName $adminAppBaseName
-    $licenseTempFile = Backup-CloudOdsLicense $resourceGroupName $adminAppWebSiteName
 		
     $deploymentResult = New-AzureRmResourceGroupDeployment -Name ((Get-ChildItem $templateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm')) `
                                    -ResourceGroupName $resourceGroupName `
@@ -188,12 +124,6 @@ function Update-Ods()
                                    -Force -Verbose -ErrorAction Stop
 	
 	Update-OdsVersion $resourceGroupName
-    
-    if ($licenseTempFile -ne $Null)
-    {
-        $Global:licenseTempFile = $licenseTempFile
-        Restore-CloudOdsLicense $resourceGroupName $adminAppWebSiteName $licenseTempFile
-    }
 
 	return $deploymentResult
 }
@@ -211,14 +141,5 @@ $adminAppUrl = $deploymentResult.Outputs.adminAppUrl.Value
 
 Write-Success "Deployment Complete"
 Write-Success "Login to the AdminApp ($adminAppUrl) to complete the Update process."
-
-if ($Global:licenseRestoreFailed -eq $True)
-{
-    $licenseContent = [IO.File]::ReadAllText($Global:licenseTempFile, [System.Text.Encoding]::UTF8)
-    $licenseBytes = [System.Text.Encoding]::UTF8.GetBytes($licenseContent)
-    $licenseBase64 = [Convert]::ToBase64String($licenseBytes)
-
-    $adminAppUrl = $adminAppUrl + '/License?license=' + $licenseBase64
-}
 
 Start-Process $adminAppUrl
