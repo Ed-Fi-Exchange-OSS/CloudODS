@@ -1,0 +1,169 @@
+﻿{
+    "$schema": "http://schema.management.azure.com/schemas/2015-01-01/deploymentTemplate.json#",
+    "contentVersion": "1.0.0.0",
+    "parameters": {
+        "adminAppNameToDeploy":{
+            "type": "string",
+            "defaultValue": "concat('EdFiOdsAdminAppWebSite-', uniqueString(resourceGroup().id))"
+        },
+        "sqlServerAdminLogin": {
+            "type": "string"
+        },
+        "sqlServerAdminPassword": {
+            "type": "securestring"
+        },      
+        "version": {
+            "type": "string"
+        },
+        "edition": {
+            "type": "string",
+            "allowedValues": [ "test", "release" ],
+            "defaultValue": "release"
+        },       
+        "odsInstanceName": {
+            "type": "string"
+        },
+        "productionApiUrl": {
+            "type": "string"
+        },        
+        "appInsightsLocation": {
+            "type": "string",
+            "allowedValues": [ "East US", "South Central US" ],
+            "defaultValue": "South Central US"
+        },
+        "metadataCacheTimeOut": {
+            "type": "string",
+            "defaultValue": "0"
+        }
+    },
+    "variables": {        
+        "odsAssetsBaseUrl": "[concat('https://odsassets.blob.core.windows.net/public/adminapp/')]",
+        "sqlMaxSizeBytes_Standard": "268435456000",
+        "sqlMaxSizeBytes_Premium": "536870912000",
+        "sqlServerSettings": {
+            "name": "[concat('edfiodssql-', uniqueString(resourceGroup().id))]",
+            "administratorLogin": "[parameters('sqlServerAdminLogin')]",
+            "administratorLoginPassword": "[parameters('sqlServerAdminPassword')]"
+        },
+        "adminAppWebsiteSettings": {
+            "hostingPlanName": "Ed-Fi-Admin-App-Websites",
+            "pricingTier": "S1",
+            "websiteName": "[parameters('adminAppNameToDeploy')]"           
+        },
+        "adminAppAssetsUrl": "[concat(variables('odsAssetsBaseUrl'), 'EdFi.Ods.AdminApp.Web.2.2.0.v2.zip')]",
+        "applicationInsightsName": "[concat('AppInsights-', variables('adminAppWebsiteSettings').websiteName)]"
+
+    },
+    "resources": [
+        {
+            "name": "[variables('sqlServerSettings').name]",
+            "type": "Microsoft.Sql/servers",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "SqlServer"
+            },
+            "apiVersion": "2014-04-01-preview",
+            "properties": {
+                "administratorLogin": "[variables('sqlServerSettings').administratorLogin]",
+                "administratorLoginPassword": "[variables('sqlServerSettings').administratorLoginPassword]",
+                "version": "12.0"
+            }
+        },
+        {
+            "apiVersion": "2015-08-01",
+            "name": "[variables('adminAppWebsiteSettings').hostingPlanName]",
+            "type": "Microsoft.Web/serverfarms",
+            "location": "[resourceGroup().location]",
+            "tags": {
+                "displayName": "AdminApp Web Hosting Plan"
+            },
+            "sku": {
+                "name": "[variables('adminAppWebsiteSettings').pricingTier]",
+                "capacity": 1
+            },
+            "properties": {
+                "name": "[variables('adminAppWebsiteSettings').hostingPlanName]"
+            }
+        },
+        {
+            "apiVersion": "2015-08-01",
+            "name": "[variables('adminAppWebsiteSettings').websiteName]",
+            "type": "Microsoft.Web/sites",
+            "location": "[resourceGroup().location]",
+            "dependsOn": [
+                "[concat('Microsoft.Web/serverFarms/', variables('adminAppWebsiteSettings').hostingPlanName)]"
+            ],
+            "tags": {
+                "[concat('hidden-related:', resourceGroup().id, '/providers/Microsoft.Web/serverfarms/', variables('adminAppWebsiteSettings').hostingPlanName)]": "empty",
+                "displayName": "Admin App Website",
+                "Cloud-Ods-Role": "AdminApp",
+                "Cloud-Ods-Environment": "Production"
+            },
+            "properties": {
+                "name": "[variables('adminAppWebsiteSettings').websiteName]",
+                "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('adminAppWebsiteSettings').hostingPlanName)]",
+                "siteConfig": {
+                    "AlwaysOn": true
+                }
+            },
+            "resources": [              
+                {
+                    "apiVersion": "2015-08-01",
+                    "type": "config",
+                    "name": "appsettings",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName)]",
+                        "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName, '/extensions/MSDeploy')]",
+                        "[concat('Microsoft.Insights/components/', variables('applicationInsightsName'))]"
+                    ],
+                    "properties": {                       
+                        "ApplicationInsightsInstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2014-04-01').InstrumentationKey]",
+                        "defaultOdsInstance": "[parameters('odsInstanceName')]",
+                        "productionApiUrl": "[parameters('productionApiUrl')]",                       
+                        "systemManagedSqlServer": "true",
+                        "SecurityMetadataCacheTimeoutMinutes": "[parameters('metadataCacheTimeOut')]"
+                    }
+                },
+                {
+                    "apiVersion": "2015-08-01",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName)]"
+                    ],
+                    "location": "[resourceGroup().location]",
+                    "name": "MSDeploy",
+                    "properties": {
+                        "connectionString": "",
+                        "dbType": "None",
+                        "packageUri": "[variables('adminAppAssetsUrl')]"                       
+                    },
+                    "tags": {
+                        "displayName": "deployment"
+                    },
+                    "type": "extensions"
+                }
+            ]
+        },
+        {
+            "name": "[variables('applicationInsightsName')]",
+            "type": "Microsoft.Insights/components",
+            "location": "[parameters('appInsightsLocation')]",
+            "apiVersion": "2014-04-01",
+            "dependsOn": [
+                "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName)]"
+            ],
+            "tags": {
+            "[concat('hidden-link:', resourceId('Microsoft.Web/sites', variables('adminAppWebsiteSettings').websiteName))]": "Resource",
+                "displayName": "Admin AppInsights"
+            },
+            "properties": {
+                "applicationId": "[variables('adminAppWebsiteSettings').websiteName]"
+            }
+        }
+    ],
+    "outputs": {
+        "adminAppUrl": {
+            "type": "string",
+            "value": "[concat('https://', reference(resourceId('Microsoft.Web/sites', variables('adminAppWebsiteSettings').websiteName)).hostNames[0])]"
+        }
+    }
+}
