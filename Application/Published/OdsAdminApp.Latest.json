@@ -106,7 +106,31 @@
                     "AlwaysOn": true
                 }
             },
-            "resources": [              
+            "resources": [  
+                {
+                    "apiVersion": "2015-08-01",
+                    "type": "config",
+                    "name": "connectionstrings",
+                    "dependsOn": [
+                        "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName)]",
+                        "[concat('Microsoft.Web/sites/', variables('adminAppWebsiteSettings').websiteName, '/extensions/MSDeploy')]",
+                        "[concat('Microsoft.Sql/servers/', variables('sqlServerSettings').name)]"
+                    ],
+                    "properties": {
+                        "Admin": {
+                            "value": "[concat('Data Source=tcp:', reference(concat('Microsoft.Sql/servers/', variables('sqlServerSettings').name)).fullyQualifiedDomainName, ',1433;Initial Catalog=EdFi_Admin;User Id=\"', variables('sqlServerSettings').administratorLogin, '@', variables('sqlServerSettings').name, '\";Password=\"', variables('sqlServerSettings').administratorLoginPassword, '\";')]",
+                            "type": "SQLServer"
+                        },
+                        "Security": {
+                            "value": "[concat('Data Source=tcp:', reference(concat('Microsoft.Sql/servers/', variables('sqlServerSettings').name)).fullyQualifiedDomainName, ',1433;Initial Catalog=EdFi_Security;User Id=\"', variables('sqlServerSettings').administratorLogin, '@', variables('sqlServerSettings').name, '\";Password=\"', variables('sqlServerSettings').administratorLoginPassword, '\";')]",
+                            "type": "SQLServer"
+                        },
+                        "ProductionOds": {
+                            "value": "[concat('Data Source=tcp:', reference(concat('Microsoft.Sql/servers/', variables('sqlServerSettings').name)).fullyQualifiedDomainName, ',1433;Initial Catalog=EdFi_Ods_Production;User Id=\"', variables('sqlServerSettings').administratorLogin, '@', variables('sqlServerSettings').name, '\";Password=\"', variables('sqlServerSettings').administratorLoginPassword, '\";')]",
+                            "type": "SQLServer"
+                        }
+                    }
+                },                           
                 {
                     "apiVersion": "2015-08-01",
                     "type": "config",

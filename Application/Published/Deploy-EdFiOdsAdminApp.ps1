@@ -66,7 +66,7 @@ Param(
 
 	[string]
 	[Parameter(Mandatory=$false)]
-	$AdminAppVersion,
+	$AdminAppVersion = '2.2.0',
 	
 	[string]
 	[ValidateSet('release','test')]
@@ -113,11 +113,11 @@ function Rollback-Deployment([string]$deploymentExceptionMessage) {
 	Write-Host "Attempting to roll back.  Please wait..."  -ForegroundColor Red
 	
 	Try {
-		$app = Get-AzureRmWebApp -ResourceGroupName $ResourceGroupName -Name $AdminAppNameToDeploy
-		If($app)
-		{
-			Write-Host $app
-		}
+		# $app = Get-AzureRmWebApp -ResourceGroupName $ResourceGroupName -Name $AdminAppNameToDeploy
+		# If($app)
+		# {
+		# 	Write-Host $app
+		# }
 		#Delete-AzureCloudOdsAdApplication 
 	} Catch {
 		$ErrorMessage = $_.Exception.Message
@@ -162,7 +162,7 @@ function Deploy-AdminApp($odsDeployInfo)
 	Try
 	{
 		Write-Host "Deploying ODS Admin App"		
-		$deploymentResult = New-AzureRmResourceGroupDeployment -Name ((Get-ChildItem $templateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm')) `
+		$deploymentResult = New-AzureRmResourceGroupDeployment -DeploymentDebugLogLevel All -Name ((Get-ChildItem $templateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm')) `
 									   -ResourceGroupName $resourceGroupName `
 									   -TemplateFile $templateFile `
 									   -TemplateParameterFile $templateParametersFile `
@@ -171,7 +171,8 @@ function Deploy-AdminApp($odsDeployInfo)
 	}
 	Catch
 	{
-		Rollback-Deployment $resourceGroupName $_.Exception.Message
+		Write-Error $_.Exception.Message
+		#Rollback-Deployment $resourceGroupName $_.Exception.Message
 	}
 
 	Write-Success "Ed-Fi ODS Admin App accessible at $adminAppUrl"
