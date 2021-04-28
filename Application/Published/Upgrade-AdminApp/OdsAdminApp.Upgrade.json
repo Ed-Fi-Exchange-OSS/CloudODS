@@ -34,6 +34,9 @@
         "metadataCacheTimeOut": {
             "type": "string",
             "defaultValue": "0"
+        },
+        "encryptionKey": {
+            "type": "string"
         }
     },
     "variables": {        
@@ -50,7 +53,7 @@
             "pricingTier": "S1",
             "websiteName": "[parameters('adminAppNameToDeploy')]"           
         },
-        "adminAppAssetsUrl": "[concat(variables('odsAssetsBaseUrl'), 'edfi.suite3.ods.adminapp.web.2.2.1.zip')]",
+        "adminAppAssetsUrl": "[concat(variables('odsAssetsBaseUrl'), 'Edfi.suite3.ods.adminapp.web.zip')]",
         "applicationInsightsName": "[concat('AppInsights-', variables('adminAppWebsiteSettings').websiteName)]"
 
     },
@@ -103,7 +106,13 @@
                 "name": "[variables('adminAppWebsiteSettings').websiteName]",
                 "serverFarmId": "[resourceId('Microsoft.Web/serverfarms', variables('adminAppWebsiteSettings').hostingPlanName)]",
                 "siteConfig": {
-                    "AlwaysOn": true
+                    "AlwaysOn": true,
+                    "metadata": [
+                        {
+                            "name": "CURRENT_STACK",
+                            "value": "dotnetcore"
+                        }
+                    ]
                 }
             },
             "resources": [  
@@ -141,11 +150,12 @@
                         "[concat('Microsoft.Insights/components/', variables('applicationInsightsName'))]"
                     ],
                     "properties": {                       
-                        "ApplicationInsightsInstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2014-04-01').InstrumentationKey]",
-                        "defaultOdsInstance": "[parameters('odsInstanceName')]",
-                        "ProductionApiUrl": "[parameters('productionApiUrl')]",                       
-                        "systemManagedSqlServer": "true",
-                        "SecurityMetadataCacheTimeoutMinutes": "[parameters('metadataCacheTimeOut')]"
+                        "AppSettings:ApplicationInsightsInstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2014-04-01').InstrumentationKey]",
+                        "AppSettings:DefaultOdsInstance": "[parameters('odsInstanceName')]",
+                        "AppSettings:ProductionApiUrl": "[parameters('productionApiUrl')]",      
+                        "AppSettings:SecurityMetadataCacheTimeoutMinutes": "[parameters('metadataCacheTimeOut')]",
+                        "AppSettings:EncryptionKey":"[parameters('encryptionKey')]",
+                        "AppSettings:AppStartup":"OnPrem"
                     }
                 },
                 {

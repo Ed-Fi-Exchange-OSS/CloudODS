@@ -20,6 +20,8 @@
 	Existing app insight location, mostly same as resouce group location
 .PARAMETER ProductionApiUrl
 	Existing ODS/ API Url that Admin App can connect
+.PARAMETER EncryptionKey
+	Base64-encoded 256 bit key appropriate for use with AES encryption
 .PARAMETER TemplateFileDirectory
 	Points the script to the directory that holds the Ed-Fi ODS install templates.  By default that directory is the same as the one that contains this script.
 .PARAMETER AdminAppVersion
@@ -53,6 +55,10 @@ Param(
 	[string]
 	[Parameter(Mandatory=$true)]
 	$ProductionApiUrl,
+
+	[string]
+	[Parameter(Mandatory=$false)] 
+	$EncryptionKey,
 
 	[string] 
 	[Parameter(Mandatory=$false)] 
@@ -104,6 +110,14 @@ function Deploy-AdminApp($odsDeployInfo)
 	$appInsightsLocation = $odsDeployInfo.AppInsightsLocation	
 	$sqlServer = $odsDeployInfo.SqlServerInfo
 	$productionApiUrl = $odsDeployInfo.ProductionApiUrl	
+
+	if(-not $EncryptionKey)
+	{
+		$aes = [System.Security.Cryptography.Aes]::Create()
+		$aes.KeySize = 256
+		$aes.GenerateKey()
+		$EncryptionKey = [System.Convert]::ToBase64String($aes.Key)
+	}
 	
 	$deployParameters = New-Object -TypeName Hashtable
 	$deployParameters.Add("version", $AdminAppVersion)
@@ -115,7 +129,7 @@ function Deploy-AdminApp($odsDeployInfo)
 	$deployParameters.Add("productionApiUrl", $productionApiUrl)	
 	$deployParameters.Add("metadataCacheTimeOut", $CacheTimeOut)
 	$deployParameters.Add("adminAppNameToDeploy", $AdminAppName)
-
+	$deployParameters.Add("encryptionKey", $EncryptionKey)
 	
 	$templateFile = $AdminAppTemplateFile
 	$templateParametersFile = $AdminAppTemplateParametersFile
@@ -134,7 +148,7 @@ function Deploy-AdminApp($odsDeployInfo)
 	{
 		Write-Error $_.Exception.Message		
 	}
-	
+
 	$adminAppUrl = $deploymentResult.Outputs.adminAppUrl.Value
 	Write-Success "Ed-Fi ODS Admin App accessible at $adminAppUrl"
 	
@@ -155,7 +169,7 @@ function Run-DbMigrations($sqlServerInfo)
 {
 	$destinationZipFile = "$PSScriptRoot/Database.zip"
 	$scriptFilesPath = "$PSScriptRoot/ScriptFiles"
-	Invoke-WebRequest -Uri "https://odsassets.blob.core.windows.net/public/adminapp/Release/2.2.0/edfi.suite3.ods.adminapp.database.2.2.0.zip" -OutFile $destinationZipFile
+	Invoke-WebRequest -Uri "https://odsassets.blob.core.windows.net/public/adminapp/Release/2.2.0/Edfi.suite3.ods.adminapp.database.zip" -OutFile $destinationZipFile
 	Expand-Archive $destinationZipFile -DestinationPath $scriptFilesPath -Force
 	
 	$Server =  $sqlServerInfo.HostName
