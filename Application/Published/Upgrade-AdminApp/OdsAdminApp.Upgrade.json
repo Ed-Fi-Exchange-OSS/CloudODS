@@ -17,8 +17,8 @@
         },
         "edition": {
             "type": "string",
-            "allowedValues": [ "test", "release" ],
-            "defaultValue": "release"
+            "allowedValues": [ "Test", "Release" ],
+            "defaultValue": "Release"
         },       
         "odsInstanceName": {
             "type": "string"
@@ -37,7 +37,7 @@
         }
     },
     "variables": {        
-        "odsAssetsBaseUrl": "[concat('https://odsassets.blob.core.windows.net/public/adminapp/')]",
+        "odsAssetsBaseUrl": "[concat('https://odsassets.blob.core.windows.net/public/adminapp/Release', '/', parameters('version'), '/')]",
         "sqlMaxSizeBytes_Standard": "268435456000",
         "sqlMaxSizeBytes_Premium": "536870912000",
         "sqlServerSettings": {
@@ -50,7 +50,7 @@
             "pricingTier": "S1",
             "websiteName": "[parameters('adminAppNameToDeploy')]"           
         },
-        "adminAppAssetsUrl": "[concat(variables('odsAssetsBaseUrl'), 'EdFi.Ods.AdminApp.Web.2.2.0.v2.zip')]",
+        "adminAppAssetsUrl": "[concat(variables('odsAssetsBaseUrl'), 'edfi.suite3.ods.adminapp.web.2.2.1.zip')]",
         "applicationInsightsName": "[concat('AppInsights-', variables('adminAppWebsiteSettings').websiteName)]"
 
     },
@@ -143,7 +143,7 @@
                     "properties": {                       
                         "ApplicationInsightsInstrumentationKey": "[reference(resourceId('Microsoft.Insights/components', variables('applicationInsightsName')), '2014-04-01').InstrumentationKey]",
                         "defaultOdsInstance": "[parameters('odsInstanceName')]",
-                        "productionApiUrl": "[parameters('productionApiUrl')]",                       
+                        "ProductionApiUrl": "[parameters('productionApiUrl')]",                       
                         "systemManagedSqlServer": "true",
                         "SecurityMetadataCacheTimeoutMinutes": "[parameters('metadataCacheTimeOut')]"
                     }
