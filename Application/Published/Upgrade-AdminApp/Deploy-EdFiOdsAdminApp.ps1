@@ -7,29 +7,33 @@
 
 <#
 .SYNOPSIS
-    Deploys Admin App appliacation to an existing Azure resource group
+    Deploys Admin App appliacation to an existing Azure resource group.
 .DESCRIPTION
-	Deploys Admin App appliacation to an existing Azure resource group
+	Deploys Admin App appliacation to an existing Azure resource group.
 .PARAMETER ResourceGroupName
-	Existing resource group name
-.PARAMETER ResourceGroupLocation
-    Existing resource group location
+	Existing resource group name.
 .PARAMETER AdminAppName
-    A friendly name to help identify AdminApp within Azure.  Must be no more than 64 characters long
+    A friendly name to help identify AdminApp within Azure.  Must be no more than 64 characters long.
 .PARAMETER AppInsightLocation
-	Existing app insight location, mostly same as resouce group location
+	Existing app insight location, mostly same as resouce group location.
 .PARAMETER ProductionApiUrl
-	Existing ODS/ API Url that Admin App can connect
+	Existing ODS/ API Url that Admin App can connect.
+.PARAMETER SQLServerHostname
+	SQL Server Hostname (ex: sql.mydomain.com).
+.PARAMETER SQLServerUserName
+	Username for your SQL Server.
+.PARAMETER SQLServerPassword
+	Password for your SQL Server.
 .PARAMETER EncryptionKey
-	Base64-encoded 256 bit key appropriate for use with AES encryption
+	Base64-encoded 256 bit key appropriate for use with AES encryption. This is optional parameter. A key will be created if one is not provided.
 .PARAMETER TemplateFileDirectory
-	Points the script to the directory that holds the Ed-Fi ODS install templates.  By default that directory is the same as the one that contains this script.
+	Points the script to the directory that holds the Ed-Fi ODS install templates. By default that directory is the same as the one that contains this script.
 .PARAMETER AdminAppVersion
-	Admin app version to be deployed
+	Admin app version to be deployed. Defaults to 2.2.0.
 .PARAMETER Edition
 	Edition (Test, Release) of the Azure Deploy scripts to deploy.  Defaults to Release.
 .EXAMPLE
-	.\Deploy-EdFiOds.ps1 -ResourceGroupName "Ed-Fi-Ods-Resourcegroup" -ResourceGroupLocation "South Central US" -AdminAppName "AdminApp-Latest" -AppInsightLocation "South Central US" -ProductionApiUrl "https://edfiodsapiwebsite-production-yuw8iui32.azurewebsites.net"
+	.\Deploy-EdFiOds.ps1 -ResourceGroupName "Ed-Fi-Ods-Resourcegroup" -AdminAppName "AdminApp-Latest" -AppInsightLocation "South Central US" -ProductionApiUrl "https://edfiodsapiwebsite-production-yuw8iui32.azurewebsites.net"
     Deploys the provided version of the AdminApp to the South Central US Azure region with the default instance name
 #>
 Param(
@@ -37,11 +41,6 @@ Param(
 	[string] 
 	[Parameter(Mandatory=$true)] 
 	$ResourceGroupName,
-
-	[ValidateSet("East US", "South Central US")]
-	[string] 
-	[Parameter(Mandatory=$true)]	
-	$ResourceGroupLocation,	
 
 	[string] 
 	[Parameter(Mandatory=$true)] 
@@ -55,6 +54,18 @@ Param(
 	[string]
 	[Parameter(Mandatory=$true)]
 	$ProductionApiUrl,
+
+	[string]
+	[Parameter(Mandatory=$true)]
+	$SQLServerHostname,
+
+	[string]
+	[Parameter(Mandatory=$true)]
+	$SQLServerUserName,
+
+	[SecureString]
+	[Parameter(Mandatory=$true)]
+	$SQLServerPassword,
 
 	[string]
 	[Parameter(Mandatory=$false)] 
@@ -91,26 +102,8 @@ $CacheTimeOut = "10"
 $AdminAppTemplateFile = "$TemplateFileDirectory\OdsAdminApp.Upgrade.json"
 $AdminAppTemplateParametersFile = "$TemplateFileDirectory\OdsAdminApp.parameters.Upgrade.json"
 
-function Get-SqlServerInfo()
-{	
-	$hostName = Read-Host -Prompt "SQL Server Hostname (ex: sql.mydomain.com,1433)"
-	$hostName = $hostName.Replace(':', ',')
-	$adminCredentialsPrompt = "Please enter a username and password for your SQL Server.  These credentials will be used to create new database users for your Ed-Fi ODS installation."
-
-	$sqlServer = @{
-		HostName = $hostName
-		AdminCredentials = (Get-CredentialFromConsole $adminCredentialsPrompt)	
-	}	
-	return $sqlServer
-}
-
-function Deploy-AdminApp($odsDeployInfo)
+function Deploy-AdminApp()
 {
-	$resourceGroupName = $odsDeployInfo.ResourceGroupName
-	$appInsightsLocation = $odsDeployInfo.AppInsightsLocation	
-	$sqlServer = $odsDeployInfo.SqlServerInfo
-	$productionApiUrl = $odsDeployInfo.ProductionApiUrl	
-
 	if(-not $EncryptionKey)
 	{
 		$aes = [System.Security.Cryptography.Aes]::Create()
@@ -122,11 +115,11 @@ function Deploy-AdminApp($odsDeployInfo)
 	$deployParameters = New-Object -TypeName Hashtable
 	$deployParameters.Add("version", $AdminAppVersion)
 	$deployParameters.Add("edition", $Edition)
-	$deployParameters.Add("appInsightsLocation", $appInsightsLocation)
-	$deployParameters.Add("odsInstanceName", $resourceGroupName)
-	$deployParameters.Add("sqlServerAdminLogin", $sqlServer.AdminCredentials.UserName)
-	$deployParameters.Add("sqlServerAdminPassword", $sqlServer.AdminCredentials.Password)
-	$deployParameters.Add("productionApiUrl", $productionApiUrl)	
+	$deployParameters.Add("appInsightsLocation", $AppInsightLocation)
+	$deployParameters.Add("odsInstanceName", $ResourceGroupName)
+	$deployParameters.Add("sqlServerAdminLogin", $SQLServerUserName)
+	$deployParameters.Add("sqlServerAdminPassword", $SQLServerPassword)
+	$deployParameters.Add("productionApiUrl", $ProductionApiUrl)	
 	$deployParameters.Add("metadataCacheTimeOut", $CacheTimeOut)
 	$deployParameters.Add("adminAppNameToDeploy", $AdminAppName)
 	$deployParameters.Add("encryptionKey", $EncryptionKey)
@@ -138,7 +131,7 @@ function Deploy-AdminApp($odsDeployInfo)
 	{
 		Write-Host "Deploying ODS Admin App"		
 		$deploymentResult = New-AzureRmResourceGroupDeployment -DeploymentDebugLogLevel All -Name ((Get-ChildItem $templateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm')) `
-									   -ResourceGroupName $resourceGroupName `
+									   -ResourceGroupName $ResourceGroupName `
 									   -TemplateFile $templateFile `
 									   -TemplateParameterFile $templateParametersFile `
 									   @deployParameters `
@@ -155,35 +148,52 @@ function Deploy-AdminApp($odsDeployInfo)
 	return $deploymentResult
 }
 
-function IsDBInstalled([string]$Server, [string]$database)
+function IsDBInstalled($pwd, [string]$database)
 {	 
-	$t=Invoke-Sqlcmd -ServerInstance $Server -Username  $user -Password  $pwd -Database "master" -Query "select 1 from sys.databases where name='$database'" -OutputSqlErrors $true 
-	if (!$t) {				
+	$arguments = @{
+		ServerInstance = $SQLServerHostname
+		Username = $SQLServerUserName
+		Password = $pwd
+		Database = "master"
+		Query = "select 1 from sys.databases where name='$database'"
+		OutputSqlErrors = $true
+	}
+
+	$result = Invoke-Sqlcmd @arguments 
+	if (!$result) {				
 		Write-Error "Failed to connect to [$database] database on [$Server]" -ErrorAction Stop
 	} else {				   
 		Write-Success "[$database] Database exists in SQL Server [$Server]"
 	}
 }
 
-function Run-DbMigrations($sqlServerInfo)
+function Run-DbMigrations()
 {
+	$scriptPackageUri = "https://odsassets.blob.core.windows.net/public/adminapp/$Edition/$AdminAppVersion/Edfi.suite3.ods.adminapp.database.zip"
 	$destinationZipFile = "$PSScriptRoot/Database.zip"
 	$scriptFilesPath = "$PSScriptRoot/ScriptFiles"
-	Invoke-WebRequest -Uri "https://odsassets.blob.core.windows.net/public/adminapp/Release/2.2.0/Edfi.suite3.ods.adminapp.database.zip" -OutFile $destinationZipFile
-	Expand-Archive $destinationZipFile -DestinationPath $scriptFilesPath -Force
+	Invoke-WebRequest -Uri $scriptPackageUri -OutFile $destinationZipFile
+	Expand-Archive $destinationZipFile -DestinationPath $scriptFilesPath -Force	
 	
-	$Server =  $sqlServerInfo.HostName
 	$database = "EdFi_Admin"
-	$user = $sqlServerInfo.AdminCredentials.UserName
-	$pwd = (New-Object PSCredential $user, $sqlServerInfo.AdminCredentials.Password).GetNetworkCredential().Password	
+	$pwd = (New-Object PSCredential $SQLServerUserName, $SQLServerPassword).GetNetworkCredential().Password	
 	 
-	IsDBInstalled $Server $database	 
+	IsDBInstalled $pwd $database	 
 
 	$scripts = Get-ChildItem "$scriptFilesPath/MsSql" | Where-Object {$_.Extension -eq ".sql"}
 	foreach ($s in $scripts)
 	{   
 		Write-Host "Running Script : " $s.Name -ForegroundColor Yellow
-		$tables=Invoke-Sqlcmd -ServerInstance $Server -Username  $user -Password  $pwd -Database  $database -InputFile $s.FullName -ErrorAction 'Stop' -querytimeout (65535)
+
+		$arguments = @{
+			ServerInstance = $SQLServerHostname
+			Username = $SQLServerUserName
+			Password = $pwd
+			Database = $database
+			InputFile = $s.FullName			
+		}
+
+		$tables = Invoke-Sqlcmd @arguments -ErrorAction 'Stop' -querytimeout (65535)
 		write-host ($tables | Format-List | Out-String) 
 	}
 	
@@ -192,18 +202,8 @@ function Run-DbMigrations($sqlServerInfo)
 Login-AzureAccount
 
 Validate-UserIsAzureGlobalAdmin
-
-$sqlServerInfo = Get-SqlServerInfo
-
-$odsDeployInfo = @{		
-	ResourceGroupName = $ResourceGroupName
-	ResourceGroupLocation = $ResourceGroupLocation
-	AppInsightsLocation = $AppInsightLocation 	
-	ProductionApiUrl = $ProductionApiUrl	
-	SqlServerInfo = $sqlServerInfo
-};
 	
-$adminAppDeploymentResult = Deploy-AdminApp $odsDeployInfo
+$adminAppDeploymentResult = Deploy-AdminApp 
 
 Warmup-Website $adminAppDeploymentResult.Outputs.adminAppUrl.Value
 
@@ -212,9 +212,9 @@ Write-Success "*** NOTE ***"
 Write-Success "All newly deployed resources will now incur costs until they are manually removed from the Azure portal."
 Write-Success "***"
 
-$confirmation = Read-Host -Prompt "Please confirm that, all the database tables verification/ deletions are completed. If yes, please enter 'y' or 'Y' to proceed with the db migration."
+$confirmation = Read-Host -Prompt "Please confirm that, all the database tables verification/ deletions are completed. If yes, please enter 'y' or 'Y' to proceed with the db migration"
 if (-Not ($confirmation -ieq 'y')) {
 	exit 0
 }
 
-Run-DbMigrations($sqlServerInfo)
+Run-DbMigrations
