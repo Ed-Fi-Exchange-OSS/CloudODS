@@ -13,7 +13,8 @@
 .PARAMETER ResourceGroupName
 	Existing resource group name.
 .PARAMETER AdminAppName
-    A friendly name to help identify AdminApp within Azure.  Must be no more than 64 characters long.
+	A friendly name to help identify AdminApp within Azure.  Must be no more 
+	than 64 characters long.
 .PARAMETER AppInsightLocation
 	Existing app insight location, mostly same as resouce group location.
 .PARAMETER ProductionApiUrl
@@ -25,16 +26,30 @@
 .PARAMETER SQLServerPassword
 	Password for your SQL Server.
 .PARAMETER EncryptionKey
-	Base64-encoded 256 bit key appropriate for use with AES encryption. This is optional parameter. A key will be created if one is not provided.
+	Base64-encoded 256 bit key appropriate for use with AES encryption. This is an 
+	optional parameter. A key will be created if one is not provided.
 .PARAMETER TemplateFileDirectory
-	Points the script to the directory that holds the Ed-Fi ODS install templates. By default that directory is the same as the one that contains this script.
+	Points the script to the directory that holds the Ed-Fi ODS install templates. 
+	By default that directory is the same as the one that contains this script.
 .PARAMETER AdminAppVersion
 	Admin app version to be deployed. Defaults to 2.2.0.
 .PARAMETER Edition
 	Edition (Test, Release) of the Azure Deploy scripts to deploy.  Defaults to Release.
 .EXAMPLE
-	.\Deploy-EdFiOds.ps1 -ResourceGroupName "Ed-Fi-Ods-Resourcegroup" -AdminAppName "AdminApp-Latest" -AppInsightLocation "South Central US" -ProductionApiUrl "https://edfiodsapiwebsite-production-yuw8iui32.azurewebsites.net"
-    Deploys the provided version of the AdminApp to the South Central US Azure region with the default instance name
+	$params = @{
+		ResourceGroupName = "Ed-Fi-Ods-Resourcegroup"
+		AdminAppName = "AdminApp-Latest"
+		AppInsightLocation = "South Central US"
+		ProductionApiUrl = "https://edfiodsapiwebsite-production-yuw8iui32.azurewebsites.net"
+		SQLServerHostname = "edfiodssql-yuw8iui32.database.windows.net"
+		SQLServerUserName = "username"
+		SQLServerPassword = ConvertTo-SecureString "password"  -AsPlainText -Force
+	}
+	
+	.\Deploy-EdFiOdsAdminApp.ps1 @params
+	
+	Deploys the provided version of the AdminApp to the South Central US 
+	Azure region with the default instance name
 #>
 Param(
 
@@ -112,30 +127,33 @@ function Deploy-AdminApp()
 		$EncryptionKey = [System.Convert]::ToBase64String($aes.Key)
 	}
 	
-	$deployParameters = New-Object -TypeName Hashtable
-	$deployParameters.Add("version", $AdminAppVersion)
-	$deployParameters.Add("edition", $Edition)
-	$deployParameters.Add("appInsightsLocation", $AppInsightLocation)
-	$deployParameters.Add("odsInstanceName", $ResourceGroupName)
-	$deployParameters.Add("sqlServerAdminLogin", $SQLServerUserName)
-	$deployParameters.Add("sqlServerAdminPassword", $SQLServerPassword)
-	$deployParameters.Add("productionApiUrl", $ProductionApiUrl)	
-	$deployParameters.Add("metadataCacheTimeOut", $CacheTimeOut)
-	$deployParameters.Add("adminAppNameToDeploy", $AdminAppName)
-	$deployParameters.Add("encryptionKey", $EncryptionKey)
-	
-	$templateFile = $AdminAppTemplateFile
-	$templateParametersFile = $AdminAppTemplateParametersFile
+	$deployParameters = @{
+		version = $AdminAppVersion
+		edition =  $Edition
+		appInsightsLocation = $AppInsightLocation
+		odsInstanceName = $ResourceGroupName
+		sqlServerAdminLogin = $SQLServerUserName
+		sqlServerAdminPassword = $SQLServerPassword
+		productionApiUrl = $ProductionApiUrl
+		metadataCacheTimeOut = $CacheTimeOut
+		adminAppNameToDeploy = $AdminAppName
+		encryptionKey = $EncryptionKey
+		Force = $True
+		Verbose = $True
+	}	
 
 	Try
 	{
-		Write-Host "Deploying ODS Admin App"		
-		$deploymentResult = New-AzureRmResourceGroupDeployment -DeploymentDebugLogLevel All -Name ((Get-ChildItem $templateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm')) `
-									   -ResourceGroupName $ResourceGroupName `
-									   -TemplateFile $templateFile `
-									   -TemplateParameterFile $templateParametersFile `
-									   @deployParameters `
-									   -Force -Verbose -ErrorAction Stop
+		Write-Host "Deploying ODS Admin App"
+		$name = ((Get-ChildItem $AdminAppTemplateFile).BaseName + '-' + ((Get-Date).ToUniversalTime()).ToString('MMdd-HHmm'))
+		$deploymentResult = New-AzureRmResourceGroupDeployment `
+                                  -DeploymentDebugLogLevel All `
+                                  -Name $name `
+                                  -ResourceGroupName $ResourceGroupName `
+                                  -TemplateFile $AdminAppTemplateFile `
+                                  -TemplateParameterFile $AdminAppTemplateParametersFile `
+                                  @deployParameters `
+                                  -ErrorAction Stop	
 	}
 	Catch
 	{
@@ -193,10 +211,9 @@ function Run-DbMigrations()
 			InputFile = $s.FullName			
 		}
 
-		$tables = Invoke-Sqlcmd @arguments -ErrorAction 'Stop' -querytimeout (65535)
+		$tables = Invoke-Sqlcmd @arguments -ErrorAction 'Stop' -querytimeout (300)
 		write-host ($tables | Format-List | Out-String) 
-	}
-	
+	}	
 }
 
 Login-AzureAccount
