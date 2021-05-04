@@ -179,24 +179,47 @@ function IsDBInstalled($pwd, [string]$database)
 
 	$result = Invoke-Sqlcmd @arguments 
 	if (!$result) {				
-		Write-Error "Failed to connect to [$database] database on [$Server]" -ErrorAction Stop
+		Write-Error "Failed to connect to [$database] database on [$SQLServerHostname]" -ErrorAction Stop
 	} else {				   
-		Write-Success "[$database] Database exists in SQL Server [$Server]"
+		Write-Success "[$database] Database exists in SQL Server [$SQLServerHostname]"
 	}
+}
+
+function DeleteExistingAdminAppTables([string] $pwd, [string] $database)
+{
+	$scriptPath = "$PSScriptRoot/SchemaVerificationScripts.sql"
+	Write-Host "Deleting Admin App specific tables and schema" -ForegroundColor Yellow
+	$arguments = @{
+		ServerInstance = $SQLServerHostname
+		Username = $SQLServerUserName
+		Password = $pwd
+		Database = $database
+		InputFile = $scriptPath			
+	}
+
+	Invoke-Sqlcmd @arguments -ErrorAction 'Stop' -querytimeout (300)
+	Write-Host "Deleted Admin App specific tables and schema" -ForegroundColor Yellow
 }
 
 function Run-DbMigrations()
 {
+	$confirmation = Read-Host -Prompt "Please confirm to delete existing Admin app specific tables and re-create them using latest schema. Please enter 'y' or 'Y' to proceed"
+	if (-Not ($confirmation -ieq 'y')) {
+		exit 0
+	}
+
+	$database = "EdFi_Admin"
+	$pwd = (New-Object PSCredential $SQLServerUserName, $SQLServerPassword).GetNetworkCredential().Password	
+
+	IsDBInstalled $pwd $database
+
+	DeleteExistingAdminAppTables $pwd $database
+
 	$scriptPackageUri = "https://odsassets.blob.core.windows.net/public/adminapp/$Edition/$AdminAppVersion/Edfi.suite3.ods.adminapp.database.zip"
 	$destinationZipFile = "$PSScriptRoot/Database.zip"
 	$scriptFilesPath = "$PSScriptRoot/ScriptFiles"
 	Invoke-WebRequest -Uri $scriptPackageUri -OutFile $destinationZipFile
-	Expand-Archive $destinationZipFile -DestinationPath $scriptFilesPath -Force	
-	
-	$database = "EdFi_Admin"
-	$pwd = (New-Object PSCredential $SQLServerUserName, $SQLServerPassword).GetNetworkCredential().Password	
-	 
-	IsDBInstalled $pwd $database	 
+	Expand-Archive $destinationZipFile -DestinationPath $scriptFilesPath -Force			 
 
 	$scripts = Get-ChildItem "$scriptFilesPath/MsSql" | Where-Object {$_.Extension -eq ".sql"}
 	foreach ($s in $scripts)
@@ -228,10 +251,5 @@ Write-Success "Deployment Complete"
 Write-Success "*** NOTE ***"
 Write-Success "All newly deployed resources will now incur costs until they are manually removed from the Azure portal."
 Write-Success "***"
-
-$confirmation = Read-Host -Prompt "Please confirm that, all the database tables verification/ deletions are completed. If yes, please enter 'y' or 'Y' to proceed with the db migration"
-if (-Not ($confirmation -ieq 'y')) {
-	exit 0
-}
 
 Run-DbMigrations
