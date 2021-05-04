@@ -70,3 +70,7 @@ libs.codegen/
 #Overrides
 !/Application/EdFi.Ods.Deployment.Azure/Tools/*.dll
 !/Application/EdFi.Ods.Deployment.Azure/Tools/*.exe
+
+#Upgrade-AdminApp
+/Application/Published/Upgrade-AdminApp/ScriptFiles
+/Application/Published/Upgrade-AdminApp/*.zip
