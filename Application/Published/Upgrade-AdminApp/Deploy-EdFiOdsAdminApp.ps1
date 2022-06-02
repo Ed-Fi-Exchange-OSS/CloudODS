@@ -25,6 +25,10 @@
 	Username for your SQL Server.
 .PARAMETER SQLServerPassword
 	Password for your SQL Server.
+.PARAMETER AdminAppSqlUserName
+	Admin App username for your SQL server
+.PARAMETER AdminAppSqlPassword
+	Admin App password for your SQL server
 .PARAMETER EncryptionKey
 	Base64-encoded 256 bit key appropriate for use with AES encryption. This is an 
 	optional parameter. A key will be created if one is not provided.
@@ -83,6 +87,14 @@ Param(
 	$SQLServerPassword,
 
 	[string]
+	[Parameter(Mandatory=$true)]
+	$AdminAppSqlUserName,
+
+	[SecureString]
+	[Parameter(Mandatory=$true)]
+	$AdminAppSqlPassword,
+
+	[string]
 	[Parameter(Mandatory=$false)] 
 	$EncryptionKey,
 
@@ -134,6 +146,8 @@ function Deploy-AdminApp()
 		odsInstanceName = $ResourceGroupName
 		sqlServerAdminLogin = $SQLServerUserName
 		sqlServerAdminPassword = $SQLServerPassword
+		adminAppSqlUserName = $AdminAppSqlUserName
+        adminAppSqlPassword = $AdminAppSqlPassword  
 		productionApiUrl = $ProductionApiUrl
 		metadataCacheTimeOut = $CacheTimeOut
 		adminAppNameToDeploy = $AdminAppName
