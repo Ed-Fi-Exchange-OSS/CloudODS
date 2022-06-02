@@ -1,3 +1,7 @@
+|💡 UPDATE 💡|
+|-|
+| The Ed-Fi-Alliance-OSS has created a docker based deployment model here https://github.com/Ed-Fi-Alliance-OSS/Ed-Fi-ODS-Docker that is more actibvly maintained and should be considered for future deployments going forward. |
+
 # Ed-Fi Cloud ODS Deploy Tools (Azure)
 
 The Cloud ODS distribution includes scripts and Azure Resource Manager (ARM)
