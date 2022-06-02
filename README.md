@@ -1,6 +1,6 @@
 |💡 UPDATE 💡|
 |-|
-| The Ed-Fi-Alliance-OSS has created a docker based deployment model here https://github.com/Ed-Fi-Alliance-OSS/Ed-Fi-ODS-Docker that is more actibvly maintained and should be considered for future deployments going forward. |
+| The Ed-Fi-Alliance has created a [Docker based deployment model](https://techdocs.ed-fi.org/display/EDFITOOLS/Docker+Deployment) that is more actively maintained and should be considered for future deployments going forward. |
 
 # Ed-Fi Cloud ODS Deploy Tools (Azure)
 
